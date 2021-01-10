@@ -1,7 +1,7 @@
 import time, random
 import picamera
 
-def take:
+def take():
     camera = picamera.PiCamera()
 
     name = str(time.time()) + '_' + str(random.randint(0,1000000))
@@ -16,7 +16,8 @@ def take:
     camera.capture(imagePath)
 
     return (videoPath, imagePath)
-if (name == '__main__'):
+
+if __name__ == '__main__':
     data = take()
     print('video ' + data[0] + ' image ' + data[1])
 
