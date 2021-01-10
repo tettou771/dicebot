@@ -26,7 +26,7 @@ from linebot.exceptions import (
     InvalidSignatureError
 )
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage,
+    MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
 )
 
 app = Flask(__name__)
@@ -34,6 +34,8 @@ app = Flask(__name__)
 # get channel_secret and channel_access_token from your environment variable
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
+server_url = os.getenv('SERVER_URL', None)
+
 if channel_secret is None:
     print('Specify LINE_CHANNEL_SECRET as environment variable.')
     sys.exit(1)
@@ -69,9 +71,16 @@ def callback():
         if not isinstance(event.message, TextMessage):
             continue
 
+        # make video message
+        videoMessage = VideoSendMessage(
+            original_content_url = server_url + '/static/videos/video.mp4',
+            preview_image_url = server_url + '/static/videos/picture.png'
+        )
+
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text = '稲造と' + event.message.text)
+            #TextSendMessage(text = '稲造と' + event.message.text)
+            videoMessage
         )
 
     return 'OK'
