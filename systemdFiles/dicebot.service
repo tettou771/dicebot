@@ -1,0 +1,16 @@
+[Unit]
+Description=dicebot service
+Wants=ngrok.target
+After=ngrok.target
+
+[Service]
+Type=always
+WorkingDirectory=/home/pi/dicebot
+ExecStart=/bin/sh /home/pi/dicebot/start.sh
+User=root
+Restart=always
+StandardOutput=append:/tmp/dicebot.log
+StandardError=append:/tmp/dicebot.log
+
+[Install]
+WantedBy=multi-user.target

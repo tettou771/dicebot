@@ -15,14 +15,16 @@ from linebot.exceptions import (
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
 )
-import capture
+import capture, configparser
 
 app = Flask(__name__)
 
-# get channel_secret and channel_access_token from your environment variable
-channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
-channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
-server_url = os.getenv('SERVER_URL', None)
+# get credentials information and more
+config_ini = configparser.ConfigParser()
+config_ini.read('config.ini', encoding='utf-8')
+channel_secret = config_ini['linebot'].get('LINE_CHANNEL_SECRET')
+channel_access_token = config_ini['linebot'].get('LINE_CHANNEL_ACCESS_TOKEN')
+server_url = config_ini['linebot'].get('SERVER_URL')
 
 if channel_secret is None:
     print('Specify LINE_CHANNEL_SECRET as environment variable.')
@@ -72,12 +74,6 @@ def callback():
         if not isinstance(event.message, TextMessage):
             continue
             
-        # first reply
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text = 'Let\'s roll the dice!\nPlease wait a bit')
-        )
-
         # take capture and make video message
         captured = capture.take()
         videoMessage = VideoSendMessage(
