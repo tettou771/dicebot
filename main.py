@@ -1,21 +1,8 @@
 # -*- coding: utf-8 -*-
 
-#  Licensed under the Apache License, Version 2.0 (the "License"); you may
-#  not use this file except in compliance with the License. You may obtain
-#  a copy of the License at
-#
-#       https://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-#  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-#  License for the specific language governing permissions and limitations
-#  under the License.
-
 from __future__ import unicode_literals
 
-import os
-import sys
+import os, sys, subprocess
 from argparse import ArgumentParser
 
 from flask import Flask, request, abort
@@ -28,6 +15,7 @@ from linebot.exceptions import (
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
 )
+import capture
 
 app = Flask(__name__)
 
@@ -42,15 +30,28 @@ if channel_secret is None:
 if channel_access_token is None:
     print('Specify LINE_CHANNEL_ACCESS_TOKEN as environment variable.')
     sys.exit(1)
+if server_url is None:
+    print('Specify SERVER_URL as environment variable.')
+    sys.exit(1)
 
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
 
-@app.route("/")
+@app.route('/')
 def hello_world():
-    return "DiceBot is running.";
+    return 'DiceBot is running.';
 
-@app.route("/callback", methods=['POST'])
+@app.route('/root/poweroff')
+def poweroff():
+    print('poweroff')
+    subprocess.call('poweroff')
+
+@app.route('/root/reboot')
+def reboot():
+    print('reboot')
+    subprocess.call('reboot')
+
+@app.route('/callback', methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
 
@@ -70,11 +71,18 @@ def callback():
             continue
         if not isinstance(event.message, TextMessage):
             continue
+            
+        # first reply
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text = 'Let\'s roll the dice!\nPlease wait a bit')
+        )
 
-        # make video message
+        # take capture and make video message
+        captured = capture.take()
         videoMessage = VideoSendMessage(
-            original_content_url = server_url + '/static/videos/video.mp4',
-            preview_image_url = server_url + '/static/videos/picture.png'
+            original_content_url = server_url + '/' + captured[0],
+            preview_image_url = server_url + '/' + captured[1]
         )
 
         line_bot_api.reply_message(
