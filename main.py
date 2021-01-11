@@ -15,7 +15,7 @@ from linebot.exceptions import (
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
 )
-import capture, configparser
+import capture, configparser, time, queue, threading
 
 app = Flask(__name__)
 
@@ -25,6 +25,12 @@ config_ini.read('config.ini', encoding='utf-8')
 channel_secret = config_ini['linebot'].get('LINE_CHANNEL_SECRET')
 channel_access_token = config_ini['linebot'].get('LINE_CHANNEL_ACCESS_TOKEN')
 server_url = config_ini['linebot'].get('SERVER_URL')
+
+# request queue
+# it can't roll dice in multi thread, but callback is multithread
+# then separate dice rolling thread from callback
+maxQueueNum = 3
+diceQueue = queue.LifoQueue(maxQueueNum)
 
 if channel_secret is None:
     print('Specify LINE_CHANNEL_SECRET as environment variable.')
@@ -73,24 +79,47 @@ def callback():
             continue
         if not isinstance(event.message, TextMessage):
             continue
-            
-        # take capture and make video message
-        captured = capture.take()
-        videoMessage = VideoSendMessage(
-            original_content_url = server_url + '/' + captured[0],
-            preview_image_url = server_url + '/' + captured[1]
-        )
 
-        line_bot_api.reply_message(
-            event.reply_token,
-            #TextSendMessage(text = '稲造と' + event.message.text)
-            videoMessage
-        )
+        if diceQueue.full():
+            print('queue overflow')
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text = 'ごめんなさい、混み合っているので少し待ってから試してみてください')
+            )
+        else:
+            print('add to queue')
+            diceQueue.put(event.reply_token)
 
     return 'OK'
 
+def dice_rolling_thread():
+    print('Start loop')
+    
+    while True:
+        # if it has queue, take video and reply
+        while not diceQueue.empty():
+            reply_token = diceQueue.get()
+            
+            # take capture and make video message
+            captured = capture.take()
+            videoMessage = VideoSendMessage(
+                original_content_url = server_url + '/' + captured[0],
+                preview_image_url = server_url + '/' + captured[1]
+            )
 
+            line_bot_api.reply_message(
+                reply_token,
+                #TextSendMessage(text = 'echo ' + event.message.text)
+                videoMessage
+            )
+        
+        time.sleep(0.5)
+        
 if __name__ == "__main__":
+    # run dice rolling thread
+    thread = threading.Thread(target=dice_rolling_thread)
+    thread.start()
+
     arg_parser = ArgumentParser(
         usage='Usage: python ' + __file__ + ' [--port <port>] [--help]'
     )
