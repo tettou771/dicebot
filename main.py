@@ -13,8 +13,21 @@ from linebot.exceptions import (
     InvalidSignatureError
 )
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
-)
+    MessageEvent, TextMessage, TextSendMessage, VideoSendMessage,
+    SourceUser, SourceGroup, SourceRoom,
+    TemplateSendMessage, ConfirmTemplate, MessageAction,
+    ButtonsTemplate, ImageCarouselTemplate, ImageCarouselColumn, URIAction,
+    PostbackAction, DatetimePickerAction,
+    CameraAction, CameraRollAction, LocationAction,
+    CarouselTemplate, CarouselColumn, PostbackEvent,
+    StickerMessage, StickerSendMessage, LocationMessage, LocationSendMessage,
+    ImageMessage, VideoMessage, AudioMessage, FileMessage,
+    UnfollowEvent, FollowEvent, JoinEvent, LeaveEvent, BeaconEvent,
+    MemberJoinedEvent, MemberLeftEvent,
+    FlexSendMessage, BubbleContainer, ImageComponent, BoxComponent,
+    TextComponent, IconComponent, ButtonComponent,
+    SeparatorComponent, QuickReply, QuickReplyButton,
+    ImageSendMessage)
 import configparser, time, queue, threading
 
 # original
@@ -83,6 +96,17 @@ def callback():
         if not isinstance(event.message, TextMessage):
             continue
 
+        # check message in keyword
+        keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽']
+        isDiceRequest = False
+        for keyword in keywords:
+            if keyword in event.message.text:
+                isDiceRequest = True
+                break
+
+        if not isDiceRequest:
+            return
+
         if diceQueue.full():
             print('queue overflow')
             line_bot_api.reply_message(
@@ -90,8 +114,24 @@ def callback():
                 TextSendMessage(text = 'ごめんなさい、混み合っているので少し待ってから試してみてください')
             )
         else:
-            print('add to queue')
-            diceQueue.put(event.reply_token)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text = 'サイコロを振ります')
+            )
+
+            if isinstance(event.source, SourceGroup):
+                sendTarget = event.source.group_id
+                print('message from group')
+            elif isinstance(event.source, SourceRoom):
+                sendTarget = event.source.room_id
+                print('message from room')
+            else:
+                sendTarget = event.source.user_id
+                print('message from user')
+
+            diceQueue.put(sendTarget)
+            
+            print('add to queue: ' + sendTarget)
 
     return 'OK'
 
@@ -101,7 +141,7 @@ def dice_rolling_thread():
     while True:
         # if it has queue, take video and reply
         while not diceQueue.empty():
-            reply_token = diceQueue.get()
+            target = diceQueue.get()
             
             # begin roll the dice
             solenoid.renda_threaded()
@@ -113,10 +153,9 @@ def dice_rolling_thread():
                 preview_image_url = server_url + '/' + captured[1]
             )
 
-            line_bot_api.reply_message(
-                reply_token,
-                #TextSendMessage(text = 'echo ' + event.message.text)
-                videoMessage
+            line_bot_api.push_message(
+                target, 
+                [videoMessage]
             )
         
         time.sleep(0.5)
