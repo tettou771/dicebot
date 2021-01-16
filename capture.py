@@ -14,7 +14,7 @@ def take():
     duration = 5
     
     # camera settings
-    camera.resolution = (720, 720)
+    camera.resolution = (480, 480)
     camera.framerate = 30
     camera.start_recording(videoH264Path)
     
