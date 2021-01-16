@@ -15,7 +15,10 @@ from linebot.exceptions import (
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, VideoMessage, VideoSendMessage
 )
-import capture, configparser, time, queue, threading
+import configparser, time, queue, threading
+
+# original
+import capture, solenoid
 
 app = Flask(__name__)
 
@@ -29,7 +32,7 @@ server_url = config_ini['linebot'].get('SERVER_URL')
 # request queue
 # it can't roll dice in multi thread, but callback is multithread
 # then separate dice rolling thread from callback
-maxQueueNum = 3
+maxQueueNum = 5
 diceQueue = queue.LifoQueue(maxQueueNum)
 
 if channel_secret is None:
@@ -100,6 +103,9 @@ def dice_rolling_thread():
         while not diceQueue.empty():
             reply_token = diceQueue.get()
             
+            # begin roll the dice
+            solenoid.renda_threaded()
+
             # take capture and make video message
             captured = capture.take()
             videoMessage = VideoSendMessage(
