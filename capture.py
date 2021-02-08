@@ -16,17 +16,18 @@ def take():
     # camera settings
     camera.resolution = (480, 480)
     camera.framerate = 30
-    camera.start_recording(videoH264Path)
+
+    # capture image to video preview
+    camera.capture(imagePath)
     
     # record video and capture image
+    camera.start_recording(videoH264Path)
     start = dt.datetime.now()
     while (dt.datetime.now() - start).seconds < duration:
         camera.annotate_text = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         camera.wait_recording(0.2)
     camera.stop_recording()
     
-    # capture image to video preview
-    camera.capture(imagePath)
     camera.close()
 
     # h264 to mp4

@@ -65,16 +65,6 @@ parser = WebhookParser(channel_secret)
 def hello_world():
     return 'DiceBot is running.';
 
-@app.route('/root/poweroff')
-def poweroff():
-    print('poweroff')
-    subprocess.call('poweroff')
-
-@app.route('/root/reboot')
-def reboot():
-    print('reboot')
-    subprocess.call('reboot')
-
 @app.route('/callback', methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
