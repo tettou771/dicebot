@@ -15,9 +15,11 @@ def take():
     
     # camera settings
     camera.resolution = (480, 480)
+    camera.zoom = (0.1, 0.0, 0.8, 0.8)
     camera.framerate = 30
 
     # capture image to video preview
+    camera.annotate_text = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     camera.capture(imagePath)
     
     # record video and capture image
