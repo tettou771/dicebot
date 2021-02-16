@@ -87,7 +87,7 @@ def callback():
             continue
 
         # check message in keyword
-        keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽']
+        keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽', '乱数', '🎲']
         isDiceRequest = False
         for keyword in keywords:
             if keyword in event.message.text:
