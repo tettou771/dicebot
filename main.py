@@ -87,7 +87,7 @@ def callback():
             continue
 
         # check message in keyword
-        keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽', '乱数', '🎲']
+        keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽', '乱数', '🎲', 'random', 'Random', 'RANDOM']
         isDiceRequest = False
         for keyword in keywords:
             if keyword in event.message.text:
@@ -101,12 +101,12 @@ def callback():
             print('queue overflow')
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text = 'ごめんなさい、混み合っているので少し待ってから試してみてください')
+                TextSendMessage(text = 'ごめんなさい、混み合って生産が追いつかないので少し待ってから試してみてくだい')
             )
         else:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text = 'サイコロを振ります')
+                TextSendMessage(text = '新鮮な乱数を生産しています')
             )
 
             if isinstance(event.source, SourceGroup):

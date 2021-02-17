@@ -12,7 +12,7 @@ def push(durationSec):
 def renda():
     gpio.setmode(gpio.BCM)
     gpio.setup(solenoidPin, gpio.OUT)
-    pushSec = 0.012
+    pushSec = 0.014
     waitSec = 0.3
     pushTimes = 12
     for i in range(0, pushTimes):
