@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 
 import os, sys, subprocess
 from argparse import ArgumentParser
+import time, datetime
 
 from flask import Flask, request, abort
 from linebot import (
@@ -89,16 +90,33 @@ def callback():
         # check message in keyword
         keywords = ['dice', 'Dice', 'DICE', 'ダイス', 'サイコロ', 'さいころ', '賽', '乱数', '🎲', 'random', 'Random', 'RANDOM']
         isDiceRequest = False
+        containKeyword = ''
         for keyword in keywords:
             if keyword in event.message.text:
                 isDiceRequest = True
+                containKeyword = keyword
                 break
 
         if not isDiceRequest:
             return
 
+        messageFrom = ''
+        if isinstance(event.source, SourceGroup):
+            sendTarget = event.source.group_id
+            messageFrom = 'group'
+            print('message from group')
+        elif isinstance(event.source, SourceRoom):
+            sendTarget = event.source.room_id
+            messageFrom = 'room'
+            print('message from room')
+        else:
+            sendTarget = event.source.user_id
+            messageFrom = 'user'
+            print('message from user')
+
+        queueAdded = False
         if diceQueue.full():
-            print('queue overflow')
+            print('queue queueAdded')
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(text = 'ごめんなさい、混み合って生産が追いつかないので少し待ってから試してみてくだい')
@@ -109,19 +127,16 @@ def callback():
                 TextSendMessage(text = '新鮮な乱数を生産しています')
             )
 
-            if isinstance(event.source, SourceGroup):
-                sendTarget = event.source.group_id
-                print('message from group')
-            elif isinstance(event.source, SourceRoom):
-                sendTarget = event.source.room_id
-                print('message from room')
-            else:
-                sendTarget = event.source.user_id
-                print('message from user')
-
             diceQueue.put(sendTarget)
+            queueAdded = True
             
             print('add to queue: ' + sendTarget)
+
+        # log to csv
+        csvPath = 'csv/dicebot_statistics_' + datetime.datetime.now().strftime('%Y-%m-%d') + '.csv'
+        with open(csvPath, 'a') as f:
+            l = datetime.datetime.now().strftime('%Y/%m/%d') + ',' + datetime.datetime.now().strftime('%H:%M:%S') + ',' + str(time.time()) + ','+ messageFrom + ',' + containKeyword + ',' + str(queueAdded)
+            print(l, file = f)
 
     return 'OK'
 

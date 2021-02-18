@@ -1,6 +1,7 @@
 config.ini
 .vscode
 static/videos/*
+csv/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
