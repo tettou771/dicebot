@@ -31,6 +31,9 @@ from linebot.models import (
     ImageSendMessage)
 import configparser, time, queue, threading
 
+# twitter
+import tweepy
+
 # original
 import capture, solenoid
 
@@ -39,14 +42,24 @@ app = Flask(__name__)
 # get credentials information and more
 config_ini = configparser.ConfigParser()
 config_ini.read('config.ini', encoding='utf-8')
+
+# LINE keys
 channel_secret = config_ini['linebot'].get('LINE_CHANNEL_SECRET')
 channel_access_token = config_ini['linebot'].get('LINE_CHANNEL_ACCESS_TOKEN')
 server_url = config_ini['linebot'].get('SERVER_URL')
 
+# Twitter keys
+twitter_id = config_ini['twitter'].get('ID')
+twitter_ck = config_ini['twitter'].get('CONSUMER_KEY')
+twitter_cs = config_ini['twitter'].get('CONSUMER_SECRET')
+twitter_at = config_ini['twitter'].get('ACCESS_TOKEN')
+twitter_ats = config_ini['twitter'].get('ACCESS_TOKEN_SECRET')
+twitter_bt = config_ini['twitter'].get('BEABER_TOKEN')
+
 # request queue
 # it can't roll dice in multi thread, but callback is multithread
 # then separate dice rolling thread from callback
-maxQueueNum = 5
+maxQueueNum = 10
 diceQueue = queue.LifoQueue(maxQueueNum)
 
 if channel_secret is None:
@@ -101,16 +114,18 @@ def callback():
             return
 
         messageFrom = ''
+        queue = []
+        queue['platform'] = 'line'
         if isinstance(event.source, SourceGroup):
-            sendTarget = event.source.group_id
+            queue['sendTarget'] = event.source.group_id
             messageFrom = 'group'
             print('message from group')
         elif isinstance(event.source, SourceRoom):
-            sendTarget = event.source.room_id
+            queue['sendTarget'] = event.source.room_id
             messageFrom = 'room'
             print('message from room')
         else:
-            sendTarget = event.source.user_id
+            queue['sendTarget'] = event.source.user_id
             messageFrom = 'user'
             print('message from user')
 
@@ -127,7 +142,7 @@ def callback():
                 TextSendMessage(text = '新鮮な乱数を生産しています')
             )
 
-            diceQueue.put(sendTarget)
+            diceQueue.put(queue)
             queueAdded = True
             
             print('add to queue: ' + sendTarget)
@@ -140,14 +155,37 @@ def callback():
 
     return 'OK'
 
+# Twitter
+def on_twitter():
+    pass
+
+Client = tweepy.Client(twitter_bt, twitter_ck, twitter_cs, twitter_at, twitter_ats)
+
+class ClientProcess(tweepy.StreamingClient):
+    def on_data(self, raw_data):
+        response = json.loads(raw_data)
+        # ツイートidを取得する
+        tweet_id = response["data"]["id"]
+        # ツイートの文章を取得する
+        reply_text: str = response["data"]["text"]
+
+        print('Get Twitter message')
+        print(reply_text)
+        
+        Client.create_tweet(
+            text='test',
+            in_reply_to_tweet_id=tweet_id
+        )
+
+
 def dice_rolling_thread():
-    print('Start loop')
+    print('Start dicebot machine')
     
     while True:
         # if it has queue, take video and reply
         while not diceQueue.empty():
-            target = diceQueue.get()
-            
+            queue = diceQueue.get()
+
             # begin roll the dice
             solenoid.renda_threaded()
 
@@ -158,10 +196,17 @@ def dice_rolling_thread():
                 preview_image_url = server_url + '/' + captured[1]
             )
 
-            line_bot_api.push_message(
-                target, 
-                [videoMessage]
-            )
+            if target['platform'] == 'line':
+                # post to LINE
+                line_bot_api.push_message(
+                    queue['sendTarget'], 
+                    [videoMessage]
+                )
+
+            elif target['platform'] == 'twitter':
+                # post to Twitter (TODO)
+                pass
+
         
         time.sleep(0.5)
         
@@ -170,12 +215,19 @@ if __name__ == "__main__":
     thread = threading.Thread(target=dice_rolling_thread)
     thread.start()
 
+    # Twitter thresd
+    print('begin Twitter')
+    twitterClient = ClientProcess(twitter_bt)
+    twitterClient.add_rules(tweepy.StreamRule(twitter_id))
+    twitterClient.filter()
+
+    # FLASK thread for LINE webhook
     arg_parser = ArgumentParser(
         usage='Usage: python ' + __file__ + ' [--port <port>] [--help]'
     )
     arg_parser.add_argument('-p', '--port', type=int, default=80, help='port')
     arg_parser.add_argument('-d', '--debug', default=False, help='debug')
     options = arg_parser.parse_args()
-
     #app.run(debug=options.debug, port=options.port)
     app.run(debug=options.debug, host="0.0.0.0", port=options.port)
+    
