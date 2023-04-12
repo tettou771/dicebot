@@ -67,6 +67,12 @@ if server_url is None:
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
 
+# テキストメッセージを返すメソッド
+# エラー時にも使う
+def send_line_message(target, error_message):
+    text_message = TextSendMessage(text=error_message)
+    line_bot_api.push_message(target, [text_message])
+
 @app.route('/')
 def hello_world():
     return 'DiceBot is running.';
@@ -163,16 +169,22 @@ def dice_rolling_thread():
             date_str = datetime.datetime.now().strftime('%Y-%m-%d')
             remote_folder_path = f'/dicebot/videos/video_{date_str}'
             remote_video_file_path = f'{remote_folder_path}/{Path(captured[0]).name}'
-            uploadStatus = upload_to_nextcloud(captured[0], remote_video_file_path)
-
-            direct_video_link = create_public_link(remote_video_file_path)
-            
-            #print('dicebot video link ' + direct_video_link)
+            success, error_message = upload_to_nextcloud(captured[0], remote_video_file_path)
+            if not success:
+                send_line_message(target, error_message)
+            else:
+                direct_video_link, error_message = create_public_link(remote_video_file_path)
+                if not direct_video_link:
+                    send_line_message(target, error_message)
 
             remote_preview_file_path = f'{remote_folder_path}/{Path(captured[1]).name}'
-            upload_to_nextcloud(captured[0], remote_preview_file_path)
-            direct_preview_link = create_public_link(remote_preview_file_path)
-            #print('dicebot preview link ' + direct_preview_link)
+            success, error_message = upload_to_nextcloud(captured[1], remote_preview_file_path)
+            if not success:
+                send_line_message(target, error_message)
+            else:
+                direct_preview_link, error_message = create_public_link(remote_preview_file_path)
+                if not direct_preview_link:
+                    send_line_message(target, error_message)
 
             # make LINE message
             videoMessage = VideoSendMessage(
