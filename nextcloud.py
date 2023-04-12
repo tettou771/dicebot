@@ -3,6 +3,7 @@ import requests
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from datetime import datetime
+import os
 
 def load_credentials():
     config = configparser.ConfigParser()
@@ -22,7 +23,7 @@ def upload_to_nextcloud(local_file_path: str, remote_file_path: str):
     webdav_url = f'{nextcloud_url}/remote.php/dav/files/{username}'
 
     # フォルダが存在するかどうかを確認
-    folder_url = Path.dirname(remote_file_path)
+    folder_url = os.path.dirname(remote_file_path)
     folder_exists_url = f'{webdav_url}{folder_url}'
     folder_exists_response = requests.request('PROPFIND', folder_exists_url, auth=(username, password))
 

@@ -160,17 +160,19 @@ def dice_rolling_thread():
             captured = capture.take()
 
             # upload to nextcloud
-            date_str = datetime.now().strftime('%Y-%m-%d')
+            date_str = datetime.datetime.now().strftime('%Y-%m-%d')
             remote_folder_path = f'/dicebot/videos/video_{date_str}'
             remote_video_file_path = f'{remote_folder_path}/{Path(captured[0]).name}'
-            upload_to_nextcloud(captured[0], remote_video_file_path)
+            uploadStatus = upload_to_nextcloud(captured[0], remote_video_file_path)
+
             direct_video_link = create_public_link(remote_video_file_path)
-            print('dicebot video link ' + direct_video_link)
+            
+            #print('dicebot video link ' + direct_video_link)
 
             remote_preview_file_path = f'{remote_folder_path}/{Path(captured[1]).name}'
             upload_to_nextcloud(captured[0], remote_preview_file_path)
             direct_preview_link = create_public_link(remote_preview_file_path)
-            print('dicebot preview link ' + direct_preview_link)
+            #print('dicebot preview link ' + direct_preview_link)
 
             # make LINE message
             videoMessage = VideoSendMessage(
