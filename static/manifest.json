@@ -1,0 +1,19 @@
+{
+    "schema_version": "v1",
+    "name_for_human": "Dicebot Plugin",
+    "name_for_model": "dicebot",
+    "description_for_human": "plugin that rolls a real dice and returns the result as a video URL.",
+    "description_for_model": "plugin that rolls a real dice and returns the result as a video URL.",
+    "auth": {
+        "type": "none"
+    },
+    "api": {
+        "type": "openapi",
+        "url": "https://tettou771.cloud/dicebot/static/openapi.yaml",
+	"
+        "is_user_authenticated": false
+    },
+    "logo_url": "https://tettou771.cloud/static/logo.png",
+    "contact_email": "tettou771@gmail.com",
+    "legal_info_url": "http://www.example.com/legal"
+}

@@ -6,7 +6,7 @@ import os, sys, subprocess
 from argparse import ArgumentParser
 import time, datetime
 from pathlib import Path
-from flask import Flask, request, abort
+from flask import Flask, request, abort, send_from_directory
 
 from nextcloud import (
     upload_to_nextcloud, 
@@ -198,6 +198,21 @@ def dice_rolling_thread():
             )
         
         time.sleep(0.5)
+
+# ChatGPT対応
+
+@app.route('/static/<path:filename>')
+def serve_static_files():
+    return send_from_directory(app.static_folder, filename)
+
+@app.route('/rollthedice', methods=['GET'])
+def roll_the_dice():
+    # ここでサイコロを振り、その結果に応じたリンクを生成します。
+    dice_result = random.randint(1, 6)
+    video_url = f"https://yourdomain.com/path/to/dice_videos/dice_roll_{dice_result}.mp4"
+
+    # JSON形式でリンクを返します。
+    return jsonify({"video_url": video_url})
 
 if __name__ == "__main__":
     # run dice rolling thread

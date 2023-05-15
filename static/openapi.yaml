@@ -1,0 +1,69 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DiceBot API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/rollthedice": {
+      "get": {
+        "summary": "Roll the dice",
+        "operationId": "rollTheDice",
+        "parameters": [
+          {
+            "name": "number",
+            "in": "query",
+            "description": "Roll the real dice and return video file URL."
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful dice roll",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "video_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The URL of the video showing the dice roll"
+                    },
+                    "thumbnail_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The URL of the thumbnail image of the dice roll"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  }
+                }
+              }
+            }
+         }
+      }
+    }
+  }
+}
+
