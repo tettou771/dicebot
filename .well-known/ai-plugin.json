@@ -3,7 +3,7 @@
     "name_for_human": "Dicebot Plugin",
     "name_for_model": "dicebot",
     "description_for_human": "plugin that rolls a real dice and returns the result as a video URL.",
-    "description_for_model": "plugin that rolls a real dice and returns the result as a video URL. Paste the result_url inside the code block as an image link for the user to see. Also paste the video_url as the video download link in the same code block.The result of the dice can only be found in the result_url or video_url, so let the user know the result by looking at that image.The service is known by the name \"Fresh Random Numbers Direct Delivery Service\" or \"新鮮な乱数直送サービス\"",
+    "description_for_model": "plugin that rolls a real dice and returns the result as a video URL. Paste the video_url inside the code block as an image link (result_url) for the user to see. Don't use thumb_url. Also paste the video_url as the video download link in the same code block.The result of the dice can only be found in the result_url or video_url, so let the user know the result by looking at that image.The service is known by the name \"Fresh Random Numbers Direct Delivery Service\" or \"新鮮な乱数直送サービス\"",
     "auth": {
         "type": "none"
     },
