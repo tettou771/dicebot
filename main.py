@@ -6,7 +6,8 @@ import os, sys, subprocess
 from argparse import ArgumentParser
 import time, datetime
 from pathlib import Path
-from flask import Flask, request, abort, send_from_directory
+from flask import Flask, request, abort, send_from_directory, jsonify
+import string, random # use in generate_random_string()
 
 from nextcloud import (
     upload_to_nextcloud, 
@@ -54,6 +55,9 @@ server_url = config_ini['linebot'].get('SERVER_URL')
 maxQueueNum = 5
 diceQueue = queue.LifoQueue(maxQueueNum)
 
+# ChatGPT responses
+chatGptResponse = []
+
 if channel_secret is None:
     print('Specify LINE_CHANNEL_SECRET as environment variable.')
     sys.exit(1)
@@ -75,7 +79,7 @@ def send_line_message(target, error_message):
 
 @app.route('/')
 def hello_world():
-    return 'DiceBot is running.';
+    return 'DiceBot is running.'
 
 @app.route('/callback', methods=['POST'])
 def callback():
@@ -138,10 +142,10 @@ def callback():
                 TextSendMessage(text = '新鮮な乱数を生産しています')
             )
 
-            diceQueue.put(sendTarget)
+            protocol = 'LINE'
+            queue = (protocol, sendTarget)
+            diceQueue.put(queue)
             queueAdded = True
-            
-            print('add to queue: ' + sendTarget)
 
         # log to csv
         csvPath = 'csv/dicebot_statistics_' + datetime.datetime.now().strftime('%Y-%m-%d') + '.csv'
@@ -157,7 +161,6 @@ def dice_rolling_thread():
     while True:
         # if it has queue, take video and reply
         while not diceQueue.empty():
-            target = diceQueue.get()
             
             # begin roll the dice
             solenoid.renda_threaded()
@@ -169,33 +172,62 @@ def dice_rolling_thread():
             date_str = datetime.datetime.now().strftime('%Y-%m-%d')
             remote_folder_path = f'/dicebot/videos/video_{date_str}'
             remote_video_file_path = f'{remote_folder_path}/{Path(captured[0]).name}'
+            remote_thumb_img_path = ''
+            remote_result_img_path = ''
+            direct_video_link = ''
             success, error_message = upload_to_nextcloud(captured[0], remote_video_file_path)
-            if not success:
-                send_line_message(target, error_message)
-            else:
+
+            if success:
+                remote_thumb_img_path = f'{remote_folder_path}/{Path(captured[1]).name}'
+                success, error_message = upload_to_nextcloud(captured[1], remote_thumb_img_path)
+            
+            if success:
+                remote_result_img_path = f'{remote_folder_path}/{Path(captured[2]).name}'
+                success, error_message = upload_to_nextcloud(captured[2], remote_result_img_path)
+
+            if success:
                 direct_video_link, error_message = create_public_link(remote_video_file_path)
-                if not direct_video_link:
+                direct_thumb_link, error_message = create_public_link(remote_thumb_img_path)
+                direct_result_link, error_message = create_public_link(remote_result_img_path)
+
+            # check queue
+            queue = diceQueue.get()
+            protocol = queue[0]
+            target = queue[1]
+
+            # send to LINE
+            if protocol == 'LINE':
+                if not success:
                     send_line_message(target, error_message)
+                else:
+                    # make LINE message
+                    videoMessage = VideoSendMessage(
+                        original_content_url = direct_video_link,
+                        preview_image_url = direct_thumb_link
+                    )
 
-            remote_preview_file_path = f'{remote_folder_path}/{Path(captured[1]).name}'
-            success, error_message = upload_to_nextcloud(captured[1], remote_preview_file_path)
-            if not success:
-                send_line_message(target, error_message)
-            else:
-                direct_preview_link, error_message = create_public_link(remote_preview_file_path)
-                if not direct_preview_link:
-                    send_line_message(target, error_message)
+                    line_bot_api.push_message(
+                        target, 
+                        [videoMessage]
+                    )
 
-            # make LINE message
-            videoMessage = VideoSendMessage(
-                original_content_url = direct_video_link,
-                preview_image_url = direct_preview_link
-            )
+            # send to ChatGPT
+            elif protocol == 'ChatGPT':
+                response = {'target':target}
+                data = {}
 
-            line_bot_api.push_message(
-                target, 
-                [videoMessage]
-            )
+                if not success:
+                    response['status'] = 429
+                    data['error'] = 'Video generation error.'
+                else:
+                    response['status'] = 200
+                    data['video_url'] = direct_video_link
+                    data['thumb_url'] = direct_thumb_link
+                    data['result_url'] = direct_result_link
+
+                response ['data'] = data
+                
+                chatGptResponse.append(response)
         
         time.sleep(0.5)
 
@@ -205,14 +237,54 @@ def dice_rolling_thread():
 def serve_static_files():
     return send_from_directory(app.static_folder, filename)
 
+@app.route('/.well-known/<path:path>')
+def send_well_known(path):
+    return send_from_directory('.well-known', path)
+    
+# @app.route('/manifest.json')
+# def serve_manifest():
+#     return send_from_directory(app.static_folder, 'manifest.json')
+
+# @app.route('/openapi.yaml')
+# def serve_openapi():
+#     return send_from_directory(app.static_folder, 'openapi.yaml')
+
 @app.route('/rollthedice', methods=['GET'])
 def roll_the_dice():
-    # ここでサイコロを振り、その結果に応じたリンクを生成します。
-    dice_result = random.randint(1, 6)
-    video_url = f"https://yourdomain.com/path/to/dice_videos/dice_roll_{dice_result}.mp4"
+    # append roll task
+    protocol = 'ChatGPT'
+    random_string = generate_random_string(16)
+    queue = (protocol, random_string)
+    diceQueue.put(queue)
 
-    # JSON形式でリンクを返します。
-    return jsonify({"video_url": video_url})
+    data = {}
+
+    # サイコロを待ち、結果が来たら返す
+    # 一方で、Timeoutしたら 429 というステータスコードで
+    startTime = time.time()
+    timeoutTime = 60
+    while True:
+        for response in chatGptResponse:
+            if response['target'] == random_string:
+                data = response['data']
+                chatGptResponse.remove(response)
+                if response['status'] == 200:
+                    # JSON形式でリンクを返します。
+                    return jsonify(data)
+                else:
+                    abort(429, description=jsonify(data))
+        
+        if time.time() - startTime > timeoutTime:
+            data = { 'error' : 'Timeout' }
+            abort(408, description=jsonify(data))
+
+        time.sleep(0.5)
+
+def generate_random_string(length):
+    # 大文字、小文字のアルファベットと数字からなる文字列を生成します。
+    characters = string.ascii_letters + string.digits
+    random_string = ''.join(random.choice(characters) for _ in range(length))
+    return random_string
 
 if __name__ == "__main__":
     # run dice rolling thread

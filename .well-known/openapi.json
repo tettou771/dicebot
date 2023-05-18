@@ -5,7 +5,7 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/rollthedice": {
+    "/dicebot/rollthedice": {
       "get": {
         "summary": "Roll the dice",
         "operationId": "rollTheDice",
@@ -13,7 +13,7 @@
           {
             "name": "number",
             "in": "query",
-            "description": "Roll the real dice and return video file URL."
+            "description": "Roll the real dice and return video file URL.",
             "required": true,
             "schema": {
               "type": "integer"
@@ -33,10 +33,15 @@
                       "format": "uri",
                       "description": "The URL of the video showing the dice roll"
                     },
-                    "thumbnail_url": {
+                    "thumb_url": {
                       "type": "string",
                       "format": "uri",
                       "description": "The URL of the thumbnail image of the dice roll"
+                    },
+                    "result_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The URL of the result image of the dice roll"
                     }
                   }
                 }
@@ -61,9 +66,27 @@
                 }
               }
             }
-         }
+         },
+         "408": {
+            "description": "Request Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
 }
+
 
