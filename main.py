@@ -5,8 +5,13 @@ from __future__ import unicode_literals
 import os, sys, subprocess
 from argparse import ArgumentParser
 import time, datetime
-
+from pathlib import Path
 from flask import Flask, request, abort
+
+from nextcloud import (
+    upload_to_nextcloud, 
+    create_public_link
+)
 from linebot import (
     LineBotApi, WebhookParser
 )
@@ -61,6 +66,12 @@ if server_url is None:
 
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
+
+# テキストメッセージを返すメソッド
+# エラー時にも使う
+def send_line_message(target, error_message):
+    text_message = TextSendMessage(text=error_message)
+    line_bot_api.push_message(target, [text_message])
 
 @app.route('/')
 def hello_world():
@@ -151,11 +162,34 @@ def dice_rolling_thread():
             # begin roll the dice
             solenoid.renda_threaded()
 
-            # take capture and make video message
+            # take capture
             captured = capture.take()
+
+            # upload to nextcloud
+            date_str = datetime.datetime.now().strftime('%Y-%m-%d')
+            remote_folder_path = f'/dicebot/videos/video_{date_str}'
+            remote_video_file_path = f'{remote_folder_path}/{Path(captured[0]).name}'
+            success, error_message = upload_to_nextcloud(captured[0], remote_video_file_path)
+            if not success:
+                send_line_message(target, error_message)
+            else:
+                direct_video_link, error_message = create_public_link(remote_video_file_path)
+                if not direct_video_link:
+                    send_line_message(target, error_message)
+
+            remote_preview_file_path = f'{remote_folder_path}/{Path(captured[1]).name}'
+            success, error_message = upload_to_nextcloud(captured[1], remote_preview_file_path)
+            if not success:
+                send_line_message(target, error_message)
+            else:
+                direct_preview_link, error_message = create_public_link(remote_preview_file_path)
+                if not direct_preview_link:
+                    send_line_message(target, error_message)
+
+            # make LINE message
             videoMessage = VideoSendMessage(
-                original_content_url = server_url + '/' + captured[0],
-                preview_image_url = server_url + '/' + captured[1]
+                original_content_url = direct_video_link,
+                preview_image_url = direct_preview_link
             )
 
             line_bot_api.push_message(
@@ -164,7 +198,7 @@ def dice_rolling_thread():
             )
         
         time.sleep(0.5)
-        
+
 if __name__ == "__main__":
     # run dice rolling thread
     thread = threading.Thread(target=dice_rolling_thread)
