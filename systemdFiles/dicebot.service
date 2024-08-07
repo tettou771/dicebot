@@ -5,8 +5,8 @@ After=ngrok.target
 
 [Service]
 Type=always
-WorkingDirectory=/home/pi/dicebot
-ExecStart=/bin/sh /home/pi/dicebot/start.sh
+WorkingDirectory=/home/dicebot/dicebot
+ExecStart=/bin/sh /home/dicebot/dicebot/start.sh
 User=root
 Restart=always
 StandardOutput=append:/tmp/dicebot.log
