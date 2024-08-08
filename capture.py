@@ -42,7 +42,7 @@ def take(debug=False, save_frames=False):
     print('ビデオ撮影開始')
     
     picam2 = Picamera2()
-    video_config = picam2.create_video_configuration(main={"size": (480, 480), "format": "RGB888"})
+    video_config = picam2.create_video_configuration(main={"size": (480, 480), "format": "BGR888"})
     picam2.configure(video_config)
 
     timestamp_overlay = TimestampOverlay(480, 480)
