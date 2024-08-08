@@ -164,12 +164,14 @@ def dice_rolling_thread():
 
             # take capture
             captured = capture.take()
+            video_path = captured[0]
+            image_path = captured[1]
 
             # upload to nextcloud
             date_str = datetime.datetime.now().strftime('%Y-%m-%d')
             remote_folder_path = f'/dicebot/videos/video_{date_str}'
             remote_video_file_path = f'{remote_folder_path}/{Path(captured[0]).name}'
-            success, error_message = upload_to_nextcloud(captured[0], remote_video_file_path)
+            success, error_message = upload_to_nextcloud(video_path, remote_video_file_path)
             if not success:
                 send_line_message(target, error_message)
             else:
@@ -178,13 +180,18 @@ def dice_rolling_thread():
                     send_line_message(target, error_message)
 
             remote_preview_file_path = f'{remote_folder_path}/{Path(captured[1]).name}'
-            success, error_message = upload_to_nextcloud(captured[1], remote_preview_file_path)
+            success, error_message = upload_to_nextcloud(image_path, remote_preview_file_path)
             if not success:
                 send_line_message(target, error_message)
             else:
                 direct_preview_link, error_message = create_public_link(remote_preview_file_path)
                 if not direct_preview_link:
                     send_line_message(target, error_message)
+
+            # ビデオと画像ファイルを削除
+            os.remove(video_path)
+            os.remove(image_path)
+            print("ビデオと画像ファイルを削除しました。")
 
             # make LINE message
             videoMessage = VideoSendMessage(

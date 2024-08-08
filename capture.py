@@ -4,44 +4,39 @@ import os
 import subprocess
 from datetime import datetime
 from picamera2 import Picamera2
-from PIL import Image, ImageDraw, ImageFont
 import numpy as np
+import cv2
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class TimestampOverlay:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        try:
-            self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
-        except IOError:
-            print("カスタムフォントの読み込みに失敗しました。デフォルトを使用します。")
-            self.font = ImageFont.load_default()
-
-    def create_overlay(self, text):
-        overlay = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-        position = (10, 10)
-        for offset in [(1,1), (-1,1), (1,-1), (-1,-1)]:
-            draw.text((position[0]+offset[0], position[1]+offset[1]), text, font=self.font, fill=(0, 0, 0, 255))
-        draw.text(position, text, font=self.font, fill=(255, 255, 255, 255))
-        return np.array(overlay)
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.font_scale = 0.7
+        self.font_thickness = 2
 
     def apply_timestamp(self, frame, timestamp):
-        overlay = self.create_overlay(timestamp.strftime('%Y-%m-%d %H:%M:%S'))
+        timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
         
-        # フレームが2次元（グレースケール）の場合、3次元（RGB）に変換
-        if len(frame.shape) == 2:
-            frame = np.stack((frame,) * 3, axis=-1)
-        elif frame.shape[2] == 4:  # RGBAの場合、RGBに変換
-            frame = frame[:,:,:3]
+        # フレームがRGBAの場合、RGBに変換
+        if frame.shape[2] == 4:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
         
-        # オーバーレイのアルファチャンネルを使用してフレームと結合
-        alpha = overlay[:,:,3].astype(float) / 255.0
-        alpha = np.expand_dims(alpha, axis=2)
-        rgb = overlay[:,:,:3]
+        # タイムスタンプのサイズを取得
+        (text_width, text_height), _ = cv2.getTextSize(timestamp_str, self.font, self.font_scale, self.font_thickness)
         
-        blended = (rgb * alpha + frame * (1 - alpha)).astype(np.uint8)
-        return blended
+        # 背景の矩形を描画
+        cv2.rectangle(frame, (10, 10), (10 + text_width, 10 + text_height + 10), (0, 0, 0), -1)
+        
+        # タイムスタンプを描画
+        cv2.putText(frame, timestamp_str, (10, 30), self.font, self.font_scale, (255, 255, 255), self.font_thickness, cv2.LINE_AA)
+        
+        return frame
+
+def process_and_save_frame(frame, timestamp, filename, timestamp_overlay):
+    timestamped_frame = timestamp_overlay.apply_timestamp(frame, timestamp)
+    cv2.imwrite(filename, cv2.cvtColor(timestamped_frame, cv2.COLOR_RGB2BGR))
 
 def take(debug=False, save_frames=False):
     print('ビデオ撮影開始')
@@ -50,10 +45,8 @@ def take(debug=False, save_frames=False):
     video_config = picam2.create_video_configuration(main={"size": (480, 480), "format": "RGB888"})
     picam2.configure(video_config)
 
-    # TimestampOverlayインスタンスを作成
     timestamp_overlay = TimestampOverlay(480, 480)
 
-    # デバッグディレクトリが存在することを確認
     os.makedirs("debug", exist_ok=True)
     os.makedirs("static/videos", exist_ok=True)
 
@@ -70,7 +63,7 @@ def take(debug=False, save_frames=False):
     # タイムスタンプ付きの静止画を撮影
     frame = picam2.capture_array()
     timestamped_frame = timestamp_overlay.apply_timestamp(frame, datetime.now())
-    Image.fromarray(timestamped_frame).save(image_path)
+    cv2.imwrite(image_path, cv2.cvtColor(timestamped_frame, cv2.COLOR_RGB2BGR))
 
     if debug:
         print(f"カメラのフル解像度: {picam2.camera_properties['PixelArraySize']}")
@@ -80,30 +73,39 @@ def take(debug=False, save_frames=False):
     frame_count = 0
     total_frames = duration * fps
 
-    while frame_count < total_frames:
-        frame_time = start_time + (frame_count / fps)
-        current_time = time.time()
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        future_to_frame = {}
         
-        if current_time < frame_time:
-            time.sleep(frame_time - current_time)
-        
-        frame = picam2.capture_array()
-        timestamp = datetime.fromtimestamp(frame_time)
-        timestamped_frame = timestamp_overlay.apply_timestamp(frame, timestamp)
-        
-        # フレームを一時的に保存
-        frame_filename = os.path.join(temp_frames_dir, f"frame_{frame_count:04d}.jpg")
-        Image.fromarray(timestamped_frame).save(frame_filename)
+        while frame_count < total_frames:
+            frame_time = start_time + (frame_count / fps)
+            current_time = time.time()
+            
+            if current_time < frame_time:
+                time.sleep(frame_time - current_time)
+            
+            frame = picam2.capture_array()
+            timestamp = datetime.fromtimestamp(frame_time)
+            
+            frame_filename = os.path.join(temp_frames_dir, f"frame_{frame_count:04d}.jpg")
+            future = executor.submit(process_and_save_frame, frame, timestamp, frame_filename, timestamp_overlay)
+            future_to_frame[future] = frame_count
 
-        if debug or save_frames:
-            debug_frame_filename = f"debug/debug_frame_{frame_count:04d}.jpg"
-            Image.fromarray(timestamped_frame).save(debug_frame_filename)
-            if debug:
-                print(f"デバッグフレームを保存しました: {debug_frame_filename}")
-        
-        frame_count += 1
+            if debug or save_frames:
+                debug_frame_filename = f"debug/debug_frame_{frame_count:04d}.jpg"
+                executor.submit(process_and_save_frame, frame, timestamp, debug_frame_filename, timestamp_overlay)
+            
+            frame_count += 1
+
+        # すべてのフレーム処理が完了するのを待つ
+        for future in as_completed(future_to_frame):
+            frame_num = future_to_frame[future]
+            try:
+                future.result()
+            except Exception as exc:
+                print(f'{frame_num}番目のフレーム処理中にエラーが発生しました: {exc}')
 
     picam2.stop()
+    picam2.close()
 
     # FFmpegを使用してフレームから動画を作成
     ffmpeg_cmd = [
@@ -111,8 +113,10 @@ def take(debug=False, save_frames=False):
         '-framerate', str(fps),
         '-i', f'{temp_frames_dir}/frame_%04d.jpg',
         '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '23',
         '-pix_fmt', 'yuv420p',
-        '-y',  # 既存のファイルを上書き
+        '-y',
         video_path
     ]
     subprocess.run(ffmpeg_cmd, check=True)
@@ -127,5 +131,4 @@ def take(debug=False, save_frames=False):
     return (video_path, image_path)
 
 if __name__ == '__main__':
-    # デバッグ出力を全て表示する場合はdebug=True、フレームを保存するだけの場合はsave_frames=Trueを設定してください
-    data = take(debug=True, save_frames=False)
+    data = take(debug=True, save_frames=True)
